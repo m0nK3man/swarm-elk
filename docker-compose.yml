@@ -38,7 +38,7 @@ services:
     image: registry-git.bravoerp.vn/public/elasticsearch:8.9.0
     volumes:
       - ./certs:/usr/share/elasticsearch/config/certs
-      - /home/docker/data-elastic/elasticsearch/data:/usr/share/elasticsearch/data
+      - /home/docker/data-elastic/es-data:/usr/share/elasticsearch/data
       - ./elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
       - ./repo:/var/repo
     hostname: "{{.Node.Hostname}}"
@@ -80,39 +80,53 @@ services:
         limits:
           memory: 16G
 
-  logstash:
-    image: registry.bravoerp.vn/docker.elastic.co/logstash/logstash:8.9.0
-    volumes:
-      - ./certs:/usr/share/logstash/config/certs
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro,Z
-      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro,Z
-    ports:
-      - 5044:5044
-      - 50000:50000/tcp
-      - 50000:50000/udp
-      - 9600:9600
-    environment:
-      LS_JAVA_OPTS: "-Xms3g -Xmx3g"
-      xpack.monitoring.enabled: "true"
-      xpack.monitoring.elasticsearch.hosts: ["https://es-cluster:9200"]
-      xpack.monitoring.elasticsearch.username: "elastic"
-      xpack.monitoring.elasticsearch.password: "85af32hydh85h4"
-      xpack.security.transport.ssl.enabled: "true"
-      xpack.security.transport.ssl.certificate_authorities: /usr/share/logstash/config/certs/ca/ca.crt
-      xpack.security.transport.ssl.certificate: /usr/share/logstash/config/certs/logstash/logstash.crt
-      xpack.security.transport.ssl.key: /usr/share/logstash/config/certs/logstash/logstash.key
-
   kibana:
-    image: registry.bravoerp.vn/docker.elastic.co/logstash/logstash:8.9.0
+    image: registry.bravoerp.vn/security/docker.elastic.co/kibana/kibana:8.9.0
+    labels:
+      co.elastic.logs/module: kibana
     volumes:
       - ./certs:/usr/share/kibana/config/certs
-      - ./kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
+      - /home/docker/data-elastic/kibana-data:/usr/share/kibana/data
     ports:
-      - 5601:5601
+      - ${KIBANA_PORT}:5601
     environment:
-      ELASTICSEARCH_HOSTS: "https://es-cluster:9200"
-      ELASTICSEARCH_USERNAME: "kibana_system"
-      ELASTICSEARCH_PASSWORD: "85af32hydh85h4"
-      SERVER_SSL_ENABLED: "true"
-      SERVER_SSL_CERTIFICATE: /usr/share/kibana/config/certs/kibana/kibana.crt
-      SERVER_SSL_KEY: /usr/share/kibana/config/certs/kibana/kibana.key
+      - SERVERNAME=kibana
+      - ELASTICSEARCH_HOSTS=https://es01:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
+      - XPACK_SECURITY_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+      - XPACK_REPORTING_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+    mem_limit: ${KB_MEM_LIMIT}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+ 
+  logstash:
+    image: registry.bravoerp.vn/security/docker.elastic.co/logstash/logstash:8.9.0
+    labels:
+      co.elastic.logs/module: logstash
+    user: root
+    volumes:
+      - /home/docker/data-elastic/logstash-data:/usr/share/logstash/data
+      - ./certs:/usr/share/logstash/certs
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    environment:
+      - NODE_NAME="logstash"
+      - xpack.monitoring.enabled=false
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTIC_HOSTS=https://es01:9200
+    command: logstash -f /usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5044:5044/udp"
+    mem_limit: ${LS_MEM_LIMIT}
