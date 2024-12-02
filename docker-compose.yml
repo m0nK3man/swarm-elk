@@ -1,0 +1,81 @@
+version: "3.7"
+
+services:
+  nginx:
+    image: registry-git.bravoerp.vn/public/nginx:1.17.1-alpine
+    ports:
+      - 9250:9200
+    deploy:
+      mode: global
+    volumes:
+      - ./certs:/etc/nginx/certs
+    command: |
+      /bin/sh -c "echo '
+      user nobody nogroup;
+      worker_processes auto;
+      events {
+        worker_connections 1024;
+      }
+      http {
+        client_max_body_size 4g;
+        resolver 127.0.0.11 ipv6=off;
+        server {
+          listen *:9200 ssl;
+          ssl_certificate /etc/nginx/certs/ca/ca.crt;
+          ssl_certificate_key /etc/nginx/certs/ca/ca.key;
+          location / {
+            proxy_set_header Connection keep-alive;
+            set $$url https://es-cluster:9200;
+            proxy_pass $$url;
+            proxy_set_header  Host $$http_host;
+            proxy_set_header  X-Real-IP $$remote_addr;
+            proxy_set_header  X-Forwarded-For $$proxy_add_x_forwarded_for;
+          }
+        }
+      }' | tee /etc/nginx/nginx.conf && nginx -t && nginx -g 'daemon off;'"
+
+  es-cluster:
+    image: registry-git.bravoerp.vn/public/elasticsearch:8.9.0
+    volumes:
+      - ./certs:/usr/share/elasticsearch/config/certs
+      - /home/docker/data-elastic/elasticsearch/data:/usr/share/elasticsearch/data
+      - ./elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - ./repo:/var/repo
+    hostname: "{{.Node.Hostname}}"
+    environment:
+      - node.name="{{.Node.Hostname}}"
+      - cluster.name=docker-cluster
+      - cluster.initial_master_nodes=soc01,soc02,soc03
+      - discovery.seed_hosts=es-cluster
+      - ELASTIC_PASSWORD=85af32hydh85h4
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/{{.Node.Hostname}}/{{.Node.Hostname}}.key
+      - xpack.security.http.ssl.certificate=certs/{{.Node.Hostname}}/{{.Node.Hostname}}.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/{{.Node.Hostname}}/{{.Node.Hostname}}.key
+      - xpack.security.transport.ssl.certificate=certs/{{.Node.Hostname}}/{{.Node.Hostname}}.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.license.self_generated.type=basic
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+      resources:
+        limits:
+          memory: 16G

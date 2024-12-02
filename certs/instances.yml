@@ -1,0 +1,25 @@
+instances:
+   - name: soc01
+     dns:
+       - soc01
+       - localhost
+     ip:
+       - 127.0.0.1
+       - 10.0.1.1
+       - 10.0.0.1
+   - name: soc02
+     dns:
+       - soc02
+       - localhost
+     ip:
+       - 127.0.0.1
+       - 10.0.1.1
+       - 10.0.0.1
+   - name: soc03
+     dns:
+       - soc03
+       - localhost
+     ip:
+       - 127.0.0.1
+       - 10.0.1.1
+       - 10.0.0.1

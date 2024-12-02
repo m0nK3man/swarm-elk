@@ -1,0 +1,62 @@
+version: "3.7"
+
+services:
+  es-setup:
+    image: registry-git.bravoerp.vn/public/elasticsearch:8.9.0
+    volumes:
+      - ./certs:/usr/share/elasticsearch/config/certs
+    user: "0"
+    command: >
+      bash -c '
+        if [ ! -f config/certs/ca.zip ]; then
+          echo "Creating CA";
+          bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip;
+          unzip config/certs/ca.zip -d config/certs;
+        fi;
+        if [ ! -f config/certs/certs.zip ]; then
+          echo "Creating certs";
+          echo -ne \
+          "instances:\n"\
+          "  - name: soc01\n"\
+          "    dns:\n"\
+          "      - soc01\n"\
+          "      - localhost\n"\
+          "    ip:\n"\
+          "      - 127.0.0.1\n"\
+          "      - 10.0.1.1\n"\
+          "      - 10.0.0.1\n"\
+          "  - name: soc02\n"\
+          "    dns:\n"\
+          "      - soc02\n"\
+          "      - localhost\n"\
+          "    ip:\n"\
+          "      - 127.0.0.1\n"\
+          "      - 10.0.1.1\n"\
+          "      - 10.0.0.1\n"\
+          "  - name: soc03\n"\
+          "    dns:\n"\
+          "      - soc03\n"\
+          "      - localhost\n"\
+          "    ip:\n"\
+          "      - 127.0.0.1\n"\
+          "      - 10.0.1.1\n"\
+          "      - 10.0.0.1\n"\
+          > config/certs/instances.yml;
+          bin/elasticsearch-certutil cert --silent --pem -out config/certs/certs.zip --in config/certs/instances.yml --ca-cert config/certs/ca/ca.crt --ca-key config/certs/ca/ca.key;
+          unzip config/certs/certs.zip -d config/certs;
+        fi;
+        echo "Setting file permissions"
+        chown -R root:root config/certs;
+        find . -type d -exec chmod 750 \{\} \;;
+        find . -type f -exec chmod 640 \{\} \;;
+        echo "Waiting for Elasticsearch availability";
+        until curl -s --cacert config/certs/ca/ca.crt https://soc01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
+        echo "Setting kibana_system password";
+        until curl -s -X POST --cacert config/certs/ca/ca.crt -u "elastic:85af3232338544" -H "Content-Type: application/json" https://soc01:9200/_security/user/kibana_system/_password -d "{\"password\":\"85af3232338544\"}" | grep -q "^{}"; do sleep 10; done;
+        echo "All done!";
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f config/certs/es-cluster/es-cluster.crt ]"]
+      interval: 1s
+      timeout: 5s
+      retries: 120
