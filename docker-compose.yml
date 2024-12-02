@@ -4,7 +4,7 @@ services:
   nginx:
     image: registry-git.bravoerp.vn/public/nginx:1.17.1-alpine
     ports:
-      - 9250:9200
+      - 9200:9200
     deploy:
       mode: global
     volumes:
@@ -79,3 +79,40 @@ services:
       resources:
         limits:
           memory: 16G
+
+  logstash:
+    image: registry.bravoerp.vn/docker.elastic.co/logstash/logstash:8.9.0
+    volumes:
+      - ./certs:/usr/share/logstash/config/certs
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro,Z
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro,Z
+    ports:
+      - 5044:5044
+      - 50000:50000/tcp
+      - 50000:50000/udp
+      - 9600:9600
+    environment:
+      LS_JAVA_OPTS: "-Xms3g -Xmx3g"
+      xpack.monitoring.enabled: "true"
+      xpack.monitoring.elasticsearch.hosts: ["https://es-cluster:9200"]
+      xpack.monitoring.elasticsearch.username: "elastic"
+      xpack.monitoring.elasticsearch.password: "85af32hydh85h4"
+      xpack.security.transport.ssl.enabled: "true"
+      xpack.security.transport.ssl.certificate_authorities: /usr/share/logstash/config/certs/ca/ca.crt
+      xpack.security.transport.ssl.certificate: /usr/share/logstash/config/certs/logstash/logstash.crt
+      xpack.security.transport.ssl.key: /usr/share/logstash/config/certs/logstash/logstash.key
+
+  kibana:
+    image: registry.bravoerp.vn/docker.elastic.co/logstash/logstash:8.9.0
+    volumes:
+      - ./certs:/usr/share/kibana/config/certs
+      - ./kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_HOSTS: "https://es-cluster:9200"
+      ELASTICSEARCH_USERNAME: "kibana_system"
+      ELASTICSEARCH_PASSWORD: "85af32hydh85h4"
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_CERTIFICATE: /usr/share/kibana/config/certs/kibana/kibana.crt
+      SERVER_SSL_KEY: /usr/share/kibana/config/certs/kibana/kibana.key
