@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   es-setup:
-    image: registry-git.bravoerp.vn/public/elasticsearch:8.9.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
     volumes:
       - ./certs:/usr/share/elasticsearch/config/certs
     user: "0"
@@ -17,25 +17,36 @@ services:
           echo "Creating certs";
           echo -ne \
           "instances:\n"\
-          "  - name: soc01\n"\
+          "  - name: elk-soc-prod1\n"\
           "    dns:\n"\
-          "      - soc01\n"\
+          "      - elk-soc-prod1\n"\
           "      - localhost\n"\
           "    ip:\n"\
           "      - 127.0.0.1\n"\
           "      - 10.0.1.1\n"\
           "      - 10.0.0.1\n"\
-          "  - name: soc02\n"\
+          "      - 192.168.130.231\n"\
+          "  - name: elk-soc-prod2\n"\
           "    dns:\n"\
-          "      - soc02\n"\
+          "      - elk-soc-prod2\n"\
           "      - localhost\n"\
           "    ip:\n"\
           "      - 127.0.0.1\n"\
           "      - 10.0.1.1\n"\
           "      - 10.0.0.1\n"\
-          "  - name: soc03\n"\
+          "      - 192.168.130.232\n"\
+          "  - name: elk-soc-prod3\n"\
           "    dns:\n"\
-          "      - soc03\n"\
+          "      - elk-soc-prod3\n"\
+          "      - localhost\n"\
+          "    ip:\n"\
+          "      - 127.0.0.1\n"\
+          "      - 10.0.1.1\n"\
+          "      - 10.0.0.1\n"\
+          "      - 192.168.130.233\n"\
+          "  - name: kibana\n"\
+          "    dns:\n"\
+          "      - kibana\n"\
           "      - localhost\n"\
           "    ip:\n"\
           "      - 127.0.0.1\n"\
@@ -49,10 +60,6 @@ services:
         chown -R root:root config/certs;
         find . -type d -exec chmod 750 \{\} \;;
         find . -type f -exec chmod 640 \{\} \;;
-        echo "Waiting for Elasticsearch availability";
-        until curl -s --cacert config/certs/ca/ca.crt https://soc01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
-        echo "Setting kibana_system password";
-        until curl -s -X POST --cacert config/certs/ca/ca.crt -u "elastic:85af3232338544" -H "Content-Type: application/json" https://soc01:9200/_security/user/kibana_system/_password -d "{\"password\":\"85af3232338544\"}" | grep -q "^{}"; do sleep 10; done;
         echo "All done!";
       '
     healthcheck:

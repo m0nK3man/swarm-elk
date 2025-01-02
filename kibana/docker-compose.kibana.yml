@@ -1,0 +1,31 @@
+services:
+  kibana:
+   image: docker.elastic.co/kibana/kibana:8.9.0
+   volumes:
+     - /home/docker/swarm-elk/certs:/usr/share/kibana/config/certs
+     - ./data:/usr/share/kibana/data
+   ports:
+     - 5601:5601
+   environment:
+     - SERVERNAME=kibana_prod
+#     - ELASTICSEARCH_HOSTS=["https://localhost:9250"]
+     - ELASTICSEARCH_HOSTS=["https://192.168.130.231:9250","https://192.168.130.232:9250","https://192.168.130.233:9250"]
+#     - ELASTICSEARCH_HOSTS=["https://elk-soc-prod1:9250","https://elk-soc-prod2:9250","https://elk-soc-prod3:9250"]
+     #- ELASTICSEARCH_USERNAME=admin
+     #- ELASTICSEARCH_PASSWORD=85af3232338544
+     - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
+     - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
+     - XPACK_SECURITY_ENCRYPTIONKEY=vj12pokiwkl6kywkvpzkj3e5xj2p5iqt
+     - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=vj12pokiwkl6kywkvpzkj3e5xj2p5iqt
+     - XPACK_REPORTING_ENCRYPTIONKEY=vj12pokiwkl6kywkvpzkj3e5xj2p5iqt
+     - ELASTICSEARCH_SERVICEACCOUNTTOKEN=AAEAAWVsYXN0aWMva2liYW5hL3Rva2VuMTp4UElkUmlsS1RjV3V1bWV1c0ItTThR
+   #mem_limit: ${KB_MEM_LIMIT}
+   healthcheck:
+     test:
+       [
+         "CMD-SHELL",
+         "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
+       ]
+     interval: 10s
+     timeout: 10s
+     retries: 120
